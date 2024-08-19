@@ -1,12 +1,13 @@
 # path: f2/apps/douyin/dl.py
 
 import sys
+import os
 from datetime import datetime
 from typing import Any, Union
 
 from f2.i18n.translator import _
 from f2.log.logger import logger
-from f2.dl.base_downloader import BaseDownloader
+from f2.dl.base_downloader import BaseDownloader, Video
 from f2.utils.utils import get_timestamp, timestamp_2_str
 from f2.apps.douyin.db import AsyncUserDB
 from f2.apps.douyin.utils import format_file_name, json_2_lrc
@@ -120,6 +121,16 @@ class DouyinDownloader(BaseDownloader):
             [aweme_datas] if isinstance(aweme_datas, dict) else aweme_datas
         )
 
+        avatar_url = None
+        if len(aweme_datas_list) > 0:
+            avatar_url = aweme_datas_list[0].get("author_avatar_thumb")
+            file_path = os.path.join(user_path, "avatar.jpeg")
+            if not os.path.exists(file_path):
+                await self.initiate_download(
+                        _("头像"), avatar_url, user_path, "avatar", ".jpeg"
+                    )
+                await self.execute_tasks()
+
         # 筛选指定日期区间内的作品
         if kwargs.get("interval") != "all":
             aweme_datas_list = await self.filter_aweme_datas_by_interval(
@@ -154,7 +165,7 @@ class DouyinDownloader(BaseDownloader):
         # 构建文件夹路径
         base_path = (
             user_path
-            / format_file_name(kwargs.get("naming", "{create}_{desc}"), aweme_data_dict)
+            / format_file_name(kwargs.get("uid", "{create}_{desc}"), aweme_data_dict)
             if kwargs.get("folderize")
             else user_path
         )
@@ -202,24 +213,27 @@ class DouyinDownloader(BaseDownloader):
                     logger.warning(_("{0} 该原声已被屏蔽，无法下载").format(aweme_id))
 
             # 处理封面下载任务
+            cover_file_name = None
             if kwargs.get("cover"):
                 cover_name = (
                     format_file_name(
                         kwargs.get("naming", "{create}_{desc}"), aweme_data_dict
                     )
-                    + "_cover"
-                )
+                    + "-cover"
+                ).replace("#", "")
                 animated_cover_url = aweme_data_dict.get("animated_cover")
                 cover_url = aweme_data_dict.get("cover")
                 if animated_cover_url != None:
                     await self.initiate_download(
                         _("封面"), animated_cover_url, base_path, cover_name, ".webp"
                     )
+                    cover_file_name = cover_name + ".jpeg"
                 elif cover_url != None:
                     logger.warning(_("{0} 该作品没有动态封面").format(aweme_id))
                     await self.initiate_download(
                         _("封面"), cover_url, base_path, cover_name, ".jpeg"
                     )
+                    cover_file_name = cover_name + ".jpeg"
                 else:
                     logger.warning(_("{0} 该作品没有封面").format(aweme_id))
 
@@ -229,11 +243,14 @@ class DouyinDownloader(BaseDownloader):
                     format_file_name(
                         kwargs.get("naming", "{create}_{desc}"), aweme_data_dict
                     )
-                    + "_desc"
-                )
-                desc_content = aweme_data_dict.get("desc")
-                await self.initiate_static_download(
-                    _("文案"), desc_content, base_path, desc_name, ".txt"
+                ).replace("#", "")
+                video = Video(
+                    aweme_data_dict.get("desc_raw"),
+                    cover_file_name,
+                    aweme_data_dict.get("nickname_raw"),
+                    aweme_data_dict.get("create_time"))
+                await self.initiate_nfo_download(
+                    _("文案"), video, base_path, desc_name, ".nfo"
                 )
 
             # 处理不同类型的作品下载任务
@@ -242,8 +259,7 @@ class DouyinDownloader(BaseDownloader):
                     format_file_name(
                         kwargs.get("naming", "{create}_{desc}"), aweme_data_dict
                     )
-                    + "_video"
-                )
+                ).replace("#", "")
                 # video_play_addr 现在为一个list，第一个链接下载失败，则下载第二个链接
                 video_url = aweme_data_dict.get("video_play_addr")
                 if video_url != None:

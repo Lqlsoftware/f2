@@ -5,6 +5,7 @@ import httpx
 import asyncio
 import aiofiles
 import traceback
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.error import HTTPError as urllib_HTTPError
 from rich.progress import TaskID
@@ -26,6 +27,43 @@ from f2.utils._dl import (
 # 最大片段缓存数量，超过这个数量就会进行清理
 # (Maximum segment cache count, clear when it exceeds this count)
 MAX_SEGMENT_COUNT = 1000
+
+
+class Video:
+    def __init__(self, title, cover_file, actor, publish_date):
+        self.title = " ".join(title.split("_")).strip()
+        self.cover_file = cover_file
+        self.actor = actor
+        self.publish_date = publish_date.split()[0]
+
+        self.tags = []
+        for l in title.split():
+            if l.startswith("#"):
+                ll = l.split("#")
+                for lls in ll:
+                    if lls != "":
+                        self.tags.append("#" + lls)
+
+    def Encode(self, encoding='utf8'):
+        nfo_movie = ET.Element("movie")
+        ET.SubElement(nfo_movie, "title").text = self.title
+        ET.SubElement(nfo_movie, "releasedate").text = self.publish_date
+        ET.SubElement(nfo_movie, "premiered").text = self.publish_date
+
+        actor = ET.SubElement(nfo_movie, "actor")
+        ET.SubElement(actor, "name").text = self.actor
+        ET.SubElement(actor, "type").text = "Actor"
+
+        art = ET.SubElement(nfo_movie, "art")
+        ET.SubElement(art, "poster").text = self.cover_file
+        ET.SubElement(art, "thumb").text = self.cover_file
+        ET.SubElement(art, "fanart").text = self.cover_file
+
+        for tag in self.tags:
+            ET.SubElement(nfo_movie, "tag").text = tag
+
+        nfo = ET.ElementTree(nfo_movie).getroot()
+        return ET.tostring(nfo, encoding=encoding, method='xml')
 
 
 class BaseDownloader(BaseCrawler):
@@ -513,6 +551,42 @@ class BaseDownloader(BaseCrawler):
             await self.progress.update(task_id, state="starting")
             download_task = asyncio.create_task(
                 self.save_file(task_id, content, full_path)
+            )
+            self.download_tasks.append(download_task)
+
+    async def initiate_nfo_download(
+        self,
+        file_type: str,
+        content: Any,
+        base_path: Union[str, Path],
+        file_name: str,
+        file_suffix: Optional[str],
+    ) -> None:
+
+        # 文件路径
+        file_path = f"{file_name}{file_suffix}"
+        # 文件全路径
+        full_path = self._ensure_path(base_path) / file_path
+
+        if full_path.exists():
+            task_id = await self.progress.add_task(
+                description=_("[  跳过  ]:"),
+                filename=trim_filename(file_path, 45),
+                start=True,
+                total=1,
+                completed=1,
+            )
+        else:
+            content_byte = content.Encode().decode("utf-8")
+
+            task_id = await self.progress.add_task(
+                description=_("[  {0}  ]:".format(file_type)),
+                filename=trim_filename(file_path, 45),
+                start=True,
+            )
+            await self.progress.update(task_id, state="starting")
+            download_task = asyncio.create_task(
+                self.save_file(task_id, content_byte, full_path)
             )
             self.download_tasks.append(download_task)
 

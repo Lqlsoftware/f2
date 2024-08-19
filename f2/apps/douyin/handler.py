@@ -137,7 +137,7 @@ class DouyinHandler:
 
         # 设置用户目录
         user_path = create_or_rename_user_folder(
-            kwargs, local_user_data, current_nickname
+            kwargs, local_user_data, str(sec_user_id)
         )
 
         # 如果用户不在数据库中，将其添加到数据库
@@ -190,6 +190,8 @@ class DouyinHandler:
             user_path = await self.get_or_add_user_data(
                 self.kwargs, aweme_data.sec_user_id, db
             )
+            local_user_data = await db.get_user_info(aweme_data.sec_user_id)
+            aweme_data.nickname_raw = local_user_data.nickname_raw
 
         async with AsyncVideoDB("douyin_videos.db") as db:
             await self.get_or_add_video_data(
