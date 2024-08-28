@@ -1385,7 +1385,7 @@ def create_user_folder(kwargs: dict, nickname: Union[str, int]) -> Path:
 
     # 添加下载模式和用户名
     user_path = (
-        base_path / "douyin" / kwargs.get("mode", "PLEASE_SETUP_MODE") / str(nickname)
+        base_path / str(nickname)
     )
 
     # 获取绝对路径并确保它存在
