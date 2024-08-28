@@ -97,7 +97,7 @@ class DouyinDownloader(BaseDownloader):
             return filtered_list
 
     async def create_download_tasks(
-        self, kwargs: dict, aweme_datas: Union[list, dict], user_path: Any
+        self, kwargs: dict, aweme_datas: Union[list, dict], user_path: Any, avatar_url: str = None
     ) -> None:
         """
         创建下载任务
@@ -121,9 +121,7 @@ class DouyinDownloader(BaseDownloader):
             [aweme_datas] if isinstance(aweme_datas, dict) else aweme_datas
         )
 
-        avatar_url = None
-        if len(aweme_datas_list) > 0:
-            avatar_url = aweme_datas_list[0].get("author_avatar_thumb")
+        if avatar_url != None:
             file_path = os.path.join(user_path, "avatar.jpeg")
             if not os.path.exists(file_path):
                 await self.initiate_download(
@@ -223,12 +221,13 @@ class DouyinDownloader(BaseDownloader):
                 ).replace("#", "")
                 animated_cover_url = aweme_data_dict.get("animated_cover")
                 cover_url = aweme_data_dict.get("cover")
-                if animated_cover_url != None:
-                    await self.initiate_download(
-                        _("封面"), animated_cover_url, base_path, cover_name, ".webp"
-                    )
-                    cover_file_name = cover_name + ".jpeg"
-                elif cover_url != None:
+                # disable animated_cover download
+                # if animated_cover_url != None:
+                #     await self.initiate_download(
+                #         _("封面"), animated_cover_url, base_path, cover_name, ".webp"
+                #     )
+                #     cover_file_name = cover_name + ".jpeg"
+                if cover_url != None:
                     logger.warning(_("{0} 该作品没有动态封面").format(aweme_id))
                     await self.initiate_download(
                         _("封面"), cover_url, base_path, cover_name, ".jpeg"

@@ -133,7 +133,7 @@ class DouyinHandler:
         current_user_data = await self.fetch_user_profile(sec_user_id)
 
         # 获取当前用户最新昵称
-        current_nickname = current_user_data.nickname
+        current_nickname = current_user_data.nickname_raw
 
         # 设置用户目录
         user_path = create_or_rename_user_folder(
@@ -193,10 +193,12 @@ class DouyinHandler:
             local_user_data = await db.get_user_info(aweme_data.sec_user_id)
             aweme_data.nickname_raw = local_user_data.nickname_raw
 
+
         async with AsyncVideoDB("douyin_videos.db") as db:
             await self.get_or_add_video_data(
                 aweme_data._to_dict(), db, self.ignore_fields
             )
+
 
         logger.debug(_("单个作品数据：{0}").format(aweme_data._to_dict()))
 
@@ -251,13 +253,15 @@ class DouyinHandler:
         sec_user_id = await SecUserIdFetcher.get_sec_user_id(self.kwargs.get("url"))
         async with AsyncUserDB("douyin_users.db") as udb:
             user_path = await self.get_or_add_user_data(self.kwargs, sec_user_id, udb)
+            local_user_data = await udb.get_user_info(sec_user_id)
+            avatar_url = local_user_data['avatar_url']
 
         async for aweme_data_list in self.fetch_user_post_videos(
             sec_user_id, max_cursor, page_counts, max_counts
         ):
             # 创建下载任务
             await self.downloader.create_download_tasks(
-                self.kwargs, aweme_data_list._to_list(), user_path
+                self.kwargs, aweme_data_list._to_list(), user_path, avatar_url
             )
 
             # # 一次性批量插入作品数据到数据库
